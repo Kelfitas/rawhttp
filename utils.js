@@ -63,16 +63,19 @@ export function makeHttpProxyRequest(opts) {
             let parsedResponse = {};
             socket.on('data', async (data) => {
                 log('Received: \n' + data);
-                if (parsedResponse.transferEncoding === 'chunked') {
-                    const matches = '(\d+)\r\n'.match(data);
+                const isBody = rawResponse.indexOf('\r\n\r\n') !== -1;
+                if (isBody && parsedResponse.transferEncoding === 'chunked') {
+                    const matches = data.match(/([a-f0-9]+)\r\n/);
                     // 7\r\n
                     // Mozilla\r\n
                     // 11\r\n
                     // Developer Network\r\n
                     // 0\r\n
                     // \r\n
-                    if (matches.length > 1) {
-                        contentLength = parseInt(matches[1]);
+                    log({matches});
+                    if (matches && matches.length > 1) {
+                        contentLength = parseInt(matches[1], 16);
+                        data = data.replace(`${matches[1]}\r\n`, '')
                     }
                 } else if (parsedResponse.contentLength && parseInt(parsedResponse.contentLength) > 0) {
                     contentLength = parseInt(parsedResponse.contentLength);
