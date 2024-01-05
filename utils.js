@@ -59,13 +59,31 @@ export function makeHttpProxyRequest(opts) {
             log(rawRequest);
             socket.write(rawRequest);
 
+            let contentLength = -1;
+            let parsedResponse = {};
             socket.on('data', async (data) => {
                 log('Received: \n' + data);
+                if (parsedResponse.transferEncoding === 'chunked') {
+                    const matches = '(\d+)\r\n'.match(data);
+                    // 7\r\n
+                    // Mozilla\r\n
+                    // 11\r\n
+                    // Developer Network\r\n
+                    // 0\r\n
+                    // \r\n
+                    if (matches.length > 1) {
+                        contentLength = parseInt(matches[1]);
+                    }
+                } else if (parsedResponse.contentLength && parseInt(parsedResponse.contentLength) > 0) {
+                    contentLength = parseInt(parsedResponse.contentLength);
+                }
+
                 rawResponse += data;
                 await writeData(fileStream, data);
-                const parsedResponse = parseResponse(rawResponse);
-                log(`${parsedResponse.body.length} === ${parsedResponse.contentLength}`);
-                if (parsedResponse.body.length === parseInt(parsedResponse.contentLength)) {
+                
+                parsedResponse = parseResponse(rawResponse);
+                log(`${parsedResponse.body.length} === ${contentLength}`);
+                if (contentLength === 0 || parsedResponse.body.length === contentLength) {
                     socket.destroy();
                     resolve(rawResponse);
                 }
@@ -140,22 +158,26 @@ export function parseResponse(rawResponse) {
     const [proto, statusCode, statusText] = statusLine.split(' ', 3);
     const headers = {};
     let contentLength = '';
+    let transferEncoding = '';
     for (let i = 0; i < headerLines.length; i++) {
         let [key, value] = headerLines[i].split(': ', 2);
         key = key.trim().toLowerCase();
         value = value.trim();
         if (key === 'content-length') {
             contentLength = value;
+        } else if (key === 'transfer-encoding') {
+            transferEncoding = value;
         }
         headers[key] = value;
     }
 
     return {
         contentLength,
+        transferEncoding,
         headers,
         headerLines,
         statusLine,
         statusCode, statusText, proto,
-        body: rawBody,
+        body: rawBody + '',
     }
 }
