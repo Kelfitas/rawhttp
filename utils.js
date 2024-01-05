@@ -12,7 +12,7 @@ export async function writeData(stream, data) {
     });
 }
 
-export const log =(...args) => global.debug && console.error(...args);
+export const log = (...args) => global.debug && console.error(...args);
 
 export function makeHttpProxyRequest(opts) {
     const { targetHost, targetPort, proxyHost, proxyPort, rawRequest, fileStream, useTls, timeout = 500 } = opts;
